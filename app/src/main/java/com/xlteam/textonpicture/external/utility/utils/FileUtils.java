@@ -1,7 +1,9 @@
 package com.xlteam.textonpicture.external.utility.utils;
 
+import android.Manifest;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -10,6 +12,7 @@ import android.provider.MediaStore;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 import com.xlteam.textonpicture.external.utility.logger.Log;
 
@@ -103,6 +106,14 @@ public class FileUtils {
         return null;
     }
 
+    public static File findFolderSaveImage() {
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES) + File.separator + StoragePathUtils.DATA_FOLDER);//Environment.getExternalStorageDirectory()
+        if (!file.mkdirs() && !file.isDirectory()) {
+            Log.e("mkdir", "Directory not created");
+        }
+        return file;
+    }
+
     public static File findExistingFolderRoot(Context context, String folderPath) {
         String rootPath = StoragePathUtils.getInternalStoragePath();
         File root = FileWrapper.createFile(rootPath);
@@ -186,5 +197,28 @@ public class FileUtils {
             }
         }
         return realPathUri;
+    }
+
+    public static List<String> listPermissionStorage(Context context) {
+        boolean hasReadPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED;
+        boolean hasWritePermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED;
+        boolean minSdk29 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+
+        boolean writePermissionGranted = hasWritePermission || minSdk29;
+
+        List<String> permissionsToRequest = new ArrayList<>();
+        if (!writePermissionGranted) {
+            permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+        if (!hasReadPermission) {
+            permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+        }
+        return permissionsToRequest;
     }
 }

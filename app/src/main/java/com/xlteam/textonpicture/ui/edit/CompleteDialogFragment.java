@@ -2,13 +2,17 @@ package com.xlteam.textonpicture.ui.edit;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.media.MediaScannerConnection;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,17 +30,16 @@ import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.MobileAds;
 import com.xlteam.textonpicture.R;
-import com.xlteam.textonpicture.external.utility.utils.Constant;
 import com.xlteam.textonpicture.external.utility.utils.FileUtils;
-import com.xlteam.textonpicture.external.utility.utils.Utility;
 import com.xlteam.textonpicture.ui.commondialog.DialogSaveChangesBuilder;
 import com.xlteam.textonpicture.ui.home.HomePageActivity;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Objects;
+import java.util.UUID;
 
 public class CompleteDialogFragment extends DialogFragment {
 
@@ -114,31 +117,23 @@ public class CompleteDialogFragment extends DialogFragment {
         });
 
         new Thread(() -> {
-            File saveFolder = FileUtils.findExistingFolderSaveImage();
-            if (saveFolder != null) {
-                SimpleDateFormat sdf = new SimpleDateFormat(Constant.SAVE_DATE_TIME_FORMAT, Locale.getDefault());
-                String savedPath = saveFolder.getAbsolutePath() + File.separator + sdf.format(new Date(Utility.now())) + ".png";
-                File savedFile = Utility.bitmapToFile(mBitmap, savedPath);
-                if (savedFile != null) {
-                    MediaScannerConnection.scanFile(mContext,
-                            new String[]{savedPath}, null, (path, uri) ->
-                                    new Handler(Looper.getMainLooper()).post(() -> {
-                                        tvSavedPath.setText(mContext.getString(R.string.file_path, savedPath));
-                                        layoutSuccess.setVisibility(View.VISIBLE);
-                                        loading.setVisibility(View.GONE);
-                                    })
-                    );
-                } else {
-                    new Handler(Looper.getMainLooper()).post(() -> {
-                        layoutSuccess.setVisibility(View.VISIBLE);
-                        loading.setVisibility(View.GONE);
-                        tvSaveSuccess.setText(R.string.save_fail);
-                        tvSavedPath.setText(R.string.try_again);
-                    });
-                }
+            String nameImage = UUID.randomUUID().toString();
+            Result result = savePhotoToExternalStorage(mContext, nameImage, mBitmap);
+            if (result.result) {
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    tvSavedPath.setText(mContext.getString(R.string.file_path, result.path + File.separator + nameImage + ".jpg"));
+                    layoutSuccess.setVisibility(View.VISIBLE);
+                    loading.setVisibility(View.GONE);
+                });
+            } else {
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    layoutSuccess.setVisibility(View.VISIBLE);
+                    loading.setVisibility(View.GONE);
+                    tvSaveSuccess.setText(R.string.save_fail);
+                    tvSavedPath.setText(R.string.try_again);
+                });
             }
         }).start();
-
         return root;
     }
 
@@ -154,5 +149,54 @@ public class CompleteDialogFragment extends DialogFragment {
                         ((Activity) mContext).finish();
                     }, getString(R.string.home)).build();
         mDialogBack.show();
+    }
+
+    private Result savePhotoToExternalStorage(Context context, String imageName, Bitmap bmp) {
+        OutputStream fos;
+        Uri imageCollection;
+        ContentValues contentValues = new ContentValues();
+        Result result = new Result();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            imageCollection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/" + "TextOnPicture");
+            contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, imageName + ".jpg");
+            contentValues.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            contentValues.put(MediaStore.Images.Media.WIDTH, bmp.getWidth());
+            contentValues.put(MediaStore.Images.Media.HEIGHT, bmp.getHeight());
+
+            ContentResolver contentResolver = context.getContentResolver();
+            Uri uri = contentResolver.insert(imageCollection, contentValues);
+            try {
+                fos = contentResolver.openOutputStream(Objects.requireNonNull(uri));
+                result.result = bmp.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                result.path = contentValues.getAsString(MediaStore.Images.Media.RELATIVE_PATH);
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            File saveFolder = FileUtils.findFolderSaveImage();
+            String savedPath = saveFolder.getAbsolutePath() + File.separator + imageName + ".jpg";
+            result.path = saveFolder.getAbsolutePath();
+            File savedFile = new File(savedPath);
+            try {
+                fos = new FileOutputStream(savedFile);
+                result.result = bmp.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return result;
+    }
+
+    private static class Result {
+        boolean result;
+        String path;
+
+        public Result() {
+            result = false;
+            path = "";
+        }
     }
 }

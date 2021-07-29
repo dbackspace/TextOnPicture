@@ -79,7 +79,7 @@ public class HomePageActivity extends AppCompatActivity implements DialogInterfa
 
         tvViewMoreCreated.setVisibility(View.GONE);
 
-        hasPermission();
+        updateOrRequestPermissions();
         rvFirebase.setLayoutManager(new LinearLayoutManager(this, RecyclerView.HORIZONTAL, false));
         rvFirebase.setAdapter(new PictureHomeAdapter(this, Constant.TYPE_PICTURE_FIREBASE, Utility.getUrlPictureHome()));
 
@@ -128,56 +128,58 @@ public class HomePageActivity extends AppCompatActivity implements DialogInterfa
         });
     }
 
-    private void hasPermission() {
-        Dexter.withContext(this)
-                .withPermissions(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                .withListener(new MultiplePermissionsListener() {
-                    @Override
-                    public void onPermissionsChecked(MultiplePermissionsReport multiplePermissionsReport) {
-                        if (multiplePermissionsReport.areAllPermissionsGranted()) {
-                            needCheckPermission = false;
-                            Timber.e("bug");
-                            List<String> listImagePaths = FileUtils.getListPathsIfFolderExist();
-                            if (listImagePaths.isEmpty()) {
-                                showRvCreated(false);
-                                showAndSetTextViewEmpty(true, getString(R.string.no_picture));
-                            } else {
-                                showRvCreated(true);
-                                showAndSetTextViewEmpty(false, null);
-                            }
-                        } else {
-                            showRvCreated(false);
-
-                            Utility.showDialogRequestPermission(HomePageActivity.this);
-                            needCheckPermission = true;
-                            if (!isHasAllPermission()) {
-                                String noPermission = getString(R.string.no_permission);
-                                tvEmptyCreated.setVisibility(View.VISIBLE);
-                                tvEmptyCreated.setMovementMethod(LinkMovementMethod.getInstance());
-                                tvEmptyCreated.setText(noPermission, TextView.BufferType.SPANNABLE);
-                                Spannable mySpannable = (Spannable) tvEmptyCreated.getText();
-                                ClickableSpan myClickableSpan = new ClickableSpan() {
-                                    @Override
-                                    public void onClick(View view) {
-                                        hasPermission();
-                                    }
-                                };
-                                mySpannable.setSpan(myClickableSpan, 0, noPermission.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                            } else {
+    private void updateOrRequestPermissions() {
+        List<String> permissionsToRequest = FileUtils.listPermissionStorage(this);
+        if (!permissionsToRequest.isEmpty()) {
+            Dexter.withContext(this)
+                    .withPermissions(
+                            permissionsToRequest)
+                    .withListener(new MultiplePermissionsListener() {
+                        @Override
+                        public void onPermissionsChecked(MultiplePermissionsReport multiplePermissionsReport) {
+                            if (multiplePermissionsReport.areAllPermissionsGranted()) {
                                 needCheckPermission = false;
-                            }
-                        }
-                        createdAdapter = new PictureHomeAdapter(HomePageActivity.this, Constant.TYPE_PICTURE_CREATED, FileUtils.getListPathsIfFolderExist());
-                        rvCreated.setAdapter(createdAdapter);
-                    }
+                                Timber.e("bug");
+                                List<String> listImagePaths = FileUtils.getListPathsIfFolderExist();
+                                if (listImagePaths.isEmpty()) {
+                                    showRvCreated(false);
+                                    showAndSetTextViewEmpty(true, getString(R.string.no_picture));
+                                } else {
+                                    showRvCreated(true);
+                                    showAndSetTextViewEmpty(false, null);
+                                }
+                            } else {
+                                showRvCreated(false);
 
-                    @Override
-                    public void onPermissionRationaleShouldBeShown(List<PermissionRequest> list, PermissionToken permissionToken) {
-                        permissionToken.continuePermissionRequest();
-                    }
-                }).check();
+                                Utility.showDialogRequestPermission(HomePageActivity.this);
+                                needCheckPermission = true;
+                                if (!isHasAllPermission()) {
+                                    String noPermission = getString(R.string.no_permission);
+                                    tvEmptyCreated.setVisibility(View.VISIBLE);
+                                    tvEmptyCreated.setMovementMethod(LinkMovementMethod.getInstance());
+                                    tvEmptyCreated.setText(noPermission, TextView.BufferType.SPANNABLE);
+                                    Spannable mySpannable = (Spannable) tvEmptyCreated.getText();
+                                    ClickableSpan myClickableSpan = new ClickableSpan() {
+                                        @Override
+                                        public void onClick(View view) {
+                                            updateOrRequestPermissions();
+                                        }
+                                    };
+                                    mySpannable.setSpan(myClickableSpan, 0, noPermission.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                } else {
+                                    needCheckPermission = false;
+                                }
+                            }
+                            createdAdapter = new PictureHomeAdapter(HomePageActivity.this, Constant.TYPE_PICTURE_CREATED, FileUtils.getListPathsIfFolderExist());
+                            rvCreated.setAdapter(createdAdapter);
+                        }
+
+                        @Override
+                        public void onPermissionRationaleShouldBeShown(List<PermissionRequest> list, PermissionToken permissionToken) {
+                            permissionToken.continuePermissionRequest();
+                        }
+                    }).check();
+        }
     }
 
     private boolean isHasAllPermission() {

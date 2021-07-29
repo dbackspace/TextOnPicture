@@ -48,7 +48,10 @@ import com.xlteam.textonpicture.external.utility.colorpicker.ColorPickerDialog;
 import com.xlteam.textonpicture.external.utility.customview.ClipArt;
 import com.xlteam.textonpicture.external.utility.logger.Log;
 import com.xlteam.textonpicture.external.utility.utils.Constant;
+import com.xlteam.textonpicture.external.utility.utils.FileUtils;
 import com.xlteam.textonpicture.external.utility.utils.Utility;
+
+import java.util.List;
 
 import timber.log.Timber;
 
@@ -293,27 +296,36 @@ public class EditPictureActivity extends AppCompatActivity
 
     // save image
     private void saveImageCreatedToSdcard(View view) {
-        Dexter.withContext(this)
-                .withPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                .withListener(new PermissionListener() {
-                    @Override
-                    public void onPermissionGranted(PermissionGrantedResponse permissionGrantedResponse) {
-                        FragmentManager fragmentManager = getSupportFragmentManager();
-                        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-                        CompleteDialogFragment completeDialogFragment = CompleteDialogFragment.newInstance(Utility.getBitmapFromView(view));
-                        completeDialogFragment.show(fragmentTransaction, "dialog_complete");
-                    }
+        List<String> permissionsToRequest = FileUtils.listPermissionStorage(this);
+        if (permissionsToRequest.isEmpty()) {
+            FragmentManager fragmentManager = getSupportFragmentManager();
+            FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+            CompleteDialogFragment completeDialogFragment = CompleteDialogFragment.newInstance(Utility.getBitmapFromView(view));
+            completeDialogFragment.show(fragmentTransaction, "dialog_complete");
 
-                    @Override
-                    public void onPermissionDenied(PermissionDeniedResponse permissionDeniedResponse) {
-                        Toast.makeText(mContext, getString(R.string.notify_not_enough_permission), Toast.LENGTH_SHORT).show();
-                    }
+        }else{
+            Dexter.withContext(this)
+                    .withPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    .withListener(new PermissionListener() {
+                        @Override
+                        public void onPermissionGranted(PermissionGrantedResponse permissionGrantedResponse) {
+                            FragmentManager fragmentManager = getSupportFragmentManager();
+                            FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+                            CompleteDialogFragment completeDialogFragment = CompleteDialogFragment.newInstance(Utility.getBitmapFromView(view));
+                            completeDialogFragment.show(fragmentTransaction, "dialog_complete");
+                        }
 
-                    @Override
-                    public void onPermissionRationaleShouldBeShown(PermissionRequest permissionRequest, PermissionToken permissionToken) {
-                        permissionToken.continuePermissionRequest();
-                    }
-                }).check();
+                        @Override
+                        public void onPermissionDenied(PermissionDeniedResponse permissionDeniedResponse) {
+                            Toast.makeText(mContext, getString(R.string.notify_not_enough_permission), Toast.LENGTH_SHORT).show();
+                        }
+
+                        @Override
+                        public void onPermissionRationaleShouldBeShown(PermissionRequest permissionRequest, PermissionToken permissionToken) {
+                            permissionToken.continuePermissionRequest();
+                        }
+                    }).check();
+        }
     }
 
     @SuppressLint("ResourceAsColor")
